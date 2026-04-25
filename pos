@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POS — ร้านศาลา</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --red:#C0392B;--red2:#E74C3C;--red-light:#FDEDEC;
+  --green:#27AE60;--green-light:#EAFAF1;
+  --gray-bg:#F0EFED;--gray-border:#E0DED9;
+  --text:#1A1A18;--text2:#5C5B57;--text3:#9C9B97;
+  --card:#FFFFFF;--radius:12px;--radius-sm:8px;
+  --shadow:0 2px 10px rgba(0,0,0,0.06);
+}
+body{font-family:'Sarabun',sans-serif;background:var(--gray-bg);color:var(--text);min-height:100vh}
+
+/* ── PIN Login ── */
+#pin-screen{position:fixed;inset:0;background:var(--gray-bg);z-index:900;display:flex;align-items:center;justify-content:center;padding:24px}
+#pin-screen.hidden{display:none}
+.pin-card{background:var(--card);border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1);padding:2rem 1.75rem 2.25rem;width:100%;max-width:320px;text-align:center}
+.pin-logo{font-size:44px;margin-bottom:6px}
+.pin-title{font-family:'Kanit',sans-serif;font-size:20px;font-weight:600;color:var(--text);margin-bottom:4px}
+.pin-sub{font-size:13px;color:var(--text3);margin-bottom:1.75rem}
+.pin-dots{display:flex;justify-content:center;gap:12px;margin-bottom:1.5rem;min-height:24px}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--gray-border);transition:all .15s}
+.pin-dot.filled{background:var(--red);border-color:var(--red)}
+.pin-dot.error{background:#E74C3C;border-color:#E74C3C;animation:shake .3s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.pin-numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem}
+.pin-key{background:var(--gray-bg);border:1px solid var(--gray-border);border-radius:10px;padding:14px 0;font-family:'Kanit',sans-serif;font-size:20px;font-weight:500;cursor:pointer;transition:all .1s;user-select:none;-webkit-user-select:none}
+.pin-key:active{background:var(--red);color:#fff;border-color:var(--red);transform:scale(.94)}
+.pin-key.del{font-size:16px;color:var(--text2)}
+.pin-key.empty{background:transparent;border:none;cursor:default}
+.pin-err{font-size:12px;color:var(--red);min-height:18px;margin-top:-4px}
+.pin-attempt{font-size:11px;color:var(--text3);margin-top:6px}
+
+/* ── Loading ── */
+#loading{position:fixed;inset:0;background:var(--gray-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px}
+#loading .spinner{width:36px;height:36px;border:3px solid var(--gray-border);border-top-color:var(--red);border-radius:50%;animation:spin .8s linear infinite}
+#loading p{font-family:'Kanit',sans-serif;font-size:13px;color:var(--text2)}
+#loading.hidden{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Layout ── */
+.pos-wrap{display:flex;height:100vh;overflow:hidden}
+
+/* ── Left: Menu ── */
+.menu-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+.menu-header{background:var(--red);padding:14px 16px 10px;flex-shrink:0}
+.menu-header h1{font-family:'Kanit',sans-serif;font-size:18px;font-weight:700;color:#fff;letter-spacing:.5px}
+.menu-header p{font-size:12px;color:rgba(255,255,255,.7);margin-top:2px}
+
+.cats-wrap{background:var(--card);padding:8px 12px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--gray-border);flex-shrink:0}
+.cats-wrap::-webkit-scrollbar{display:none}
+.cat-btn{padding:6px 14px;border-radius:20px;border:none;background:transparent;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);white-space:nowrap;transition:all .15s;flex-shrink:0}
+.cat-btn.active{background:var(--red);color:#fff}
+
+.grid-wrap{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+
+.card{background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative;user-select:none;-webkit-user-select:none}
+.card:active{transform:scale(0.96)}
+.card.closed{opacity:.45;pointer-events:none}
+.card-img{width:100%;aspect-ratio:1;background:var(--gray-bg);display:flex;align-items:center;justify-content:center;font-size:40px;overflow:hidden}
+.card-img img{width:100%;height:100%;object-fit:cover;object-position:0 0}
+.card-body{padding:8px 10px 10px}
+.card-name{font-family:'Kanit',sans-serif;font-size:12px;font-weight:500;color:var(--text);line-height:1.3;margin-bottom:5px}
+.card-foot{display:flex;align-items:center;justify-content:space-between}
+.card-price{font-family:'Kanit',sans-serif;font-size:13px;font-weight:700;color:var(--red)}
+.card-add{background:var(--red);color:#fff;border:none;border-radius:6px;width:26px;height:26px;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.closed-badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 7px;border-radius:20px}
+.stock-badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 7px;border-radius:20px;font-family:'Kanit',sans-serif}
+.stock-badge.low{background:rgba(192,57,43,.85)}
+.stock-badge.out{background:rgba(120,0,0,.9)}
+
+/* ── Right: Cart ── */
+.cart-panel{width:300px;flex-shrink:0;background:var(--card);display:flex;flex-direction:column;border-left:1px solid var(--gray-border);box-shadow:-2px 0 12px rgba(0,0,0,.05)}
+
+.cart-header{padding:14px 16px;border-bottom:1px solid var(--gray-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.cart-header h2{font-family:'Kanit',sans-serif;font-size:16px;font-weight:600;color:var(--text)}
+.cart-count{background:var(--red);color:#fff;font-family:'Kanit',sans-serif;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
+
+.cart-items{flex:1;overflow-y:auto;padding:8px 0;-webkit-overflow-scrolling:touch}
+.cart-items::-webkit-scrollbar{width:3px}
+.cart-items::-webkit-scrollbar-thumb{background:var(--gray-border);border-radius:2px}
+
+.ci{padding:8px 14px;border-bottom:.5px solid var(--gray-border);display:flex;align-items:flex-start;gap:8px}
+.ci-info{flex:1;min-width:0}
+.ci-name{font-size:13px;font-weight:500;color:var(--text);line-height:1.3}
+.ci-opts{font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4}
+.ci-ctrl{display:flex;align-items:center;gap:5px;margin-top:6px}
+.qb{background:var(--gray-bg);border:1px solid var(--gray-border);border-radius:5px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;flex-shrink:0}
+.qn{font-family:'Kanit',sans-serif;font-size:12px;font-weight:600;min-width:16px;text-align:center}
+.ci-price{font-family:'Kanit',sans-serif;font-size:13px;font-weight:700;color:var(--red);flex-shrink:0;padding-top:2px}
+
+.empty-cart{text-align:center;padding:2rem 1rem;color:var(--text3)}
+.empty-cart div{font-size:36px;margin-bottom:8px}
+.empty-cart p{font-size:13px}
+
+.cart-footer{border-top:1px solid var(--gray-border);padding:12px 14px;flex-shrink:0}
+.total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.total-label{font-family:'Kanit',sans-serif;font-size:14px;font-weight:500;color:var(--text2)}
+.total-val{font-family:'Kanit',sans-serif;font-size:22px;font-weight:700;color:var(--red)}
+.order-btn{width:100%;padding:13px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:'Kanit',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.order-btn:disabled{opacity:.4;cursor:not-allowed}
+.clear-btn{width:100%;margin-top:8px;padding:9px;background:transparent;border:1px solid var(--gray-border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;cursor:pointer;color:var(--text3)}
+
+/* ── Options inline dropdown ── */
+.opt-group{margin-top:6px;border:1px solid var(--gray-border);border-radius:var(--radius-sm);overflow:hidden}
+.opt-header{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--gray-bg);cursor:pointer;user-select:none;-webkit-user-select:none;gap:6px}
+.opt-header-left{display:flex;align-items:center;gap:5px;min-width:0;flex:1}
+.opt-header-label{font-size:11px;font-weight:500;color:var(--text2);white-space:nowrap}
+.opt-selected-tags{display:flex;flex-wrap:wrap;gap:2px;flex:1;min-width:0}
+.opt-tag{background:var(--red-light);color:var(--red);font-size:10px;padding:1px 5px;border-radius:8px;white-space:nowrap}
+.opt-chevron{font-size:10px;color:var(--text3);flex-shrink:0;transition:transform .2s}
+.opt-chevron.open{transform:rotate(180deg)}
+.opt-body{display:none;border-top:1px solid var(--gray-border);background:#fff}
+.opt-body.open{display:block}
+.opt-choice{display:flex;align-items:center;gap:7px;padding:7px 8px;cursor:pointer}
+.opt-choice:not(:last-child){border-bottom:.5px solid var(--gray-border)}
+.opt-checkbox{width:14px;height:14px;border:1.5px solid var(--gray-border);border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.opt-checkbox.checked{background:var(--red);border-color:var(--red)}
+.opt-checkbox.checked::after{content:'✓';font-size:9px;color:#fff;line-height:1}
+.opt-choice-name{font-size:11px;color:var(--text);flex:1}
+.opt-choice-price{font-size:10px;color:var(--red);font-family:'Kanit',sans-serif;font-weight:500;flex-shrink:0}
+
+/* ── Confirm Overlay ── */
+#confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;padding:20px}
+#confirm-overlay.open{opacity:1;pointer-events:all}
+#confirm-box{background:var(--card);border-radius:var(--radius);width:100%;max-width:420px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.2);transform:scale(.95);transition:transform .2s}
+#confirm-overlay.open #confirm-box{transform:scale(1)}
+.cb-head{padding:16px 20px 12px;border-bottom:1px solid var(--gray-border);flex-shrink:0}
+.cb-head h3{font-family:'Kanit',sans-serif;font-size:17px;font-weight:600;color:var(--text)}
+.cb-receipt{flex:1;overflow-y:auto;padding:8px 20px}
+.ri{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:.5px solid var(--gray-border);gap:10px}
+.ri:last-child{border-bottom:none}
+.ri-left{flex:1;min-width:0}
+.ri-name{font-size:13px;font-weight:500;color:var(--text)}
+.ri-opts{font-size:11px;color:var(--text3);margin-top:2px;line-height:1.5}
+.ri-qty{font-size:12px;color:var(--text2);margin-top:2px}
+.ri-price{font-family:'Kanit',sans-serif;font-size:14px;font-weight:700;color:var(--red);flex-shrink:0}
+.cb-total{display:flex;justify-content:space-between;padding:12px 20px;border-top:2px solid var(--gray-border);flex-shrink:0}
+.cb-total-label{font-family:'Kanit',sans-serif;font-size:15px;font-weight:500}
+.cb-total-val{font-family:'Kanit',sans-serif;font-size:22px;font-weight:700;color:var(--red)}
+.cb-actions{display:flex;gap:10px;padding:12px 20px;border-top:1px solid var(--gray-border);flex-shrink:0}
+.cb-cancel{flex:1;padding:11px;border:1px solid var(--gray-border);border-radius:var(--radius-sm);background:transparent;font-family:'Kanit',sans-serif;font-size:14px;cursor:pointer;color:var(--text2)}
+.cb-ok{flex:2;padding:11px;border:none;border-radius:var(--radius-sm);background:var(--red);color:#fff;font-family:'Kanit',sans-serif;font-size:15px;font-weight:600;cursor:pointer}
+.cb-ok:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── Success overlay ── */
+#success-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;padding:20px}
+#success-overlay.open{opacity:1;pointer-events:all}
+#success-box{background:var(--card);border-radius:var(--radius);width:100%;max-width:320px;padding:2rem 1.5rem;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.2);transform:scale(.9);transition:transform .2s}
+#success-overlay.open #success-box{transform:scale(1)}
+#success-box .si{font-size:52px;margin-bottom:12px}
+#success-box h2{font-family:'Kanit',sans-serif;font-size:20px;font-weight:600}
+#success-box p{font-size:14px;color:var(--text2);margin-top:6px;line-height:1.6}
+.ok-btn{display:inline-block;margin-top:1.25rem;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);padding:11px 36px;font-family:'Kanit',sans-serif;font-size:15px;font-weight:500;cursor:pointer}
+
+/* ── Mobile responsive ── */
+@media(max-width:600px){
+  .pos-wrap{flex-direction:column;height:100vh}
+  .menu-panel{flex:1;min-height:0}
+  .menu-panel .grid-wrap{padding-bottom:calc(42vh + 12px)}
+  .cart-panel{
+    position:fixed;bottom:0;left:0;right:0;
+    width:100%;height:42vh;
+    z-index:50;
+    border-left:none;border-top:2px solid var(--gray-border);
+    border-radius:var(--radius) var(--radius) 0 0;
+    box-shadow:0 -4px 20px rgba(0,0,0,.1);
+    display:flex;flex-direction:column;
+  }
+  .cart-header{flex-shrink:0}
+  .cart-items{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .cart-footer{flex-shrink:0}
+}
+
+.error-banner{background:#FDEDEC;border:1px solid #F5B7B1;border-radius:var(--radius-sm);padding:10px 14px;margin:10px;font-size:13px;color:#922B21;display:none}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div style="text-align:center;margin-top:8px">
+    <p style="font-family:'Kanit',sans-serif;font-size:24px;font-weight:600;color:var(--text);margin-bottom:6px">POS</p>
+    <p>กำลังโหลดเมนู...</p>
+  </div>
+</div>
+
+<!-- PIN Login Screen -->
+<div id="pin-screen">
+  <div class="pin-card">
+    <div class="pin-logo">🏪</div>
+    <div class="pin-title">POS — เข้าสู่ระบบ</div>
+    <div class="pin-sub">กรอก PIN เพื่อใช้งาน</div>
+    <div class="pin-dots" id="pin-dots"></div>
+    <div class="pin-numpad" id="pin-numpad"></div>
+    <div class="pin-err" id="pin-err"></div>
+    <div class="pin-attempt" id="pin-attempt"></div>
+  </div>
+</div>
+
+<div class="pos-wrap">
+
+  <!-- ── Left: Menu ── -->
+  <div class="menu-panel">
+    <div class="menu-header">
+      <h1>🏪 ร้านศาลา — POS</h1>
+      <p>หน้าสั่งอาหารสำหรับพนักงาน</p>
+    </div>
+    <div id="error-banner" class="error-banner"></div>
+    <div class="cats-wrap" id="cats"></div>
+    <div class="grid-wrap">
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+
+  <!-- ── Right: Cart ── -->
+  <div class="cart-panel">
+    <div class="cart-header">
+      <h2>🛒 ตะกร้า</h2>
+      <span class="cart-count" id="cart-count">0</span>
+    </div>
+    <div class="cart-items" id="cart-items">
+      <div class="empty-cart">
+        <div>🍽️</div>
+        <p>ยังไม่มีรายการ</p>
+      </div>
+    </div>
+    <div class="cart-footer">
+      <div class="total-row">
+        <span class="total-label">รวมทั้งหมด</span>
+        <span class="total-val" id="cart-total">฿0</span>
+      </div>
+      <button class="order-btn" id="order-btn" onclick="showConfirm()" disabled>✅ สั่งอาหาร</button>
+      <button class="clear-btn" onclick="clearCart()">🗑 ล้างทั้งหมด</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shop Closed Banner (POS ยังเข้าได้แต่จะเห็น warning) -->
+<div id="shop-closed-banner" style="display:none;background:#FDEDEC;border-bottom:2px solid #F5B7B1;padding:10px 16px;text-align:center;font-family:'Kanit',sans-serif;font-size:14px;color:#922B21;flex-shrink:0">
+  🔴 ร้านปิดอยู่ — ลูกค้าไม่สามารถสั่งได้ตอนนี้
+</div>
+
+<!-- Confirm Popup -->
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <div class="cb-head">
+      <h3>🧾 ยืนยันการสั่งอาหาร</h3>
+    </div>
+    <div class="cb-receipt" id="confirm-receipt"></div>
+    <div class="cb-total">
+      <span class="cb-total-label">รวมทั้งหมด</span>
+      <span class="cb-total-val" id="confirm-total">฿0</span>
+    </div>
+    <div class="cb-actions">
+      <button class="cb-cancel" onclick="closeConfirm()">ยกเลิก</button>
+      <button class="cb-ok" id="confirm-ok-btn" onclick="doSubmit()">✅ สั่งเลย!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Success Popup -->
+<div id="success-overlay">
+  <div id="success-box">
+    <div class="si">🎉</div>
+    <h2>สั่งสำเร็จ!</h2>
+    <p id="success-msg">ออเดอร์ถูกส่งแล้ว</p>
+    <button class="ok-btn" onclick="closeSuccess()">+ สั่งเพิ่ม</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbw1Gu6lMdoUpIW400l6qKaXeRcLKee8HD1545Cfu_OzO7xC80c5CNHlYQyv_vWtJZY/exec";
+
+// ── JSONP helper ──────────────────────────
+function jsonpCall(payload, onSuccess, onError, timeoutMs) {
+  const cbName = "__cb_" + Date.now() + "_" + Math.floor(Math.random()*9999);
+  const script  = document.createElement("script");
+  const timer   = setTimeout(function() {
+    cleanup(); if (onError) onError(new Error("timeout"));
+  }, timeoutMs || 15000);
+  function cleanup() {
+    clearTimeout(timer); delete window[cbName];
+    if (script.parentNode) script.parentNode.removeChild(script);
+  }
+  window[cbName] = function(data) { cleanup(); if (onSuccess) onSuccess(data); };
+  script.onerror = function() { cleanup(); if (onError) onError(new Error("error")); };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  script.src = API_URL + "?callback=" + cbName + "&data=" + encodeURIComponent(encoded);
+  document.head.appendChild(script);
+}
+
+// ── State ─────────────────────────────────
+let allSheets    = {};
+let optionSheets = {};
+let allItems     = [];
+let stockMap     = {};
+let curCat       = "ทั้งหมด";
+let cart         = {}; // { key: { item, qty, options:{base:Set<idx>} } }
+
+// ── PIN System ───────────────────────────
+let pinInput   = "";
+let pinAttempts = 0;
+const PIN_MAX_ATTEMPTS = 5;
+let posSecret  = ""; // จะโหลดมาจาก session หรือกรอกใหม่
+
+function buildNumpad() {
+  const dots   = document.getElementById("pin-dots");
+  const numpad = document.getElementById("pin-numpad");
+  // dots — แสดง 4-6 จุด ขึ้นกับว่ากำลังกรอกเท่าไร
+  // เริ่ม 4 จุดก่อน
+  renderDots();
+  // numpad 1-9, empty, 0, del
+  const keys = [1,2,3,4,5,6,7,8,9,"","0","⌫"];
+  numpad.innerHTML = keys.map(k => {
+    if (k === "") return `<div class="pin-key empty"></div>`;
+    if (k === "⌫") return `<div class="pin-key del" onclick="pinDel()">⌫</div>`;
+    return `<div class="pin-key" onclick="pinPress('${k}')">${k}</div>`;
+  }).join("");
+}
+
+function renderDots() {
+  const len  = Math.max(4, pinInput.length);
+  const dots = document.getElementById("pin-dots");
+  dots.innerHTML = Array.from({length: len}, (_,i) =>
+    `<div class="pin-dot${i < pinInput.length ? " filled" : ""}"></div>`
+  ).join("");
+}
+
+function pinPress(key) {
+  if (pinAttempts >= PIN_MAX_ATTEMPTS) return;
+  if (pinInput.length >= 10) return;
+  pinInput += key;
+  renderDots();
+  // ลองยืนยันอัตโนมัติ
+  tryPin();
+}
+
+function pinDel() {
+  pinInput = pinInput.slice(0, -1);
+  renderDots();
+  document.getElementById("pin-err").textContent = "";
+}
+
+function tryPin() {
+  // ลอง verify กับ server — ส่ง saveOrder dummy เพื่อเช็ค posSecret
+  // วิธีง่ายกว่า: เก็บ PIN ไว้ แล้วส่งพร้อม order จริง ถ้า Unauthorized แสดงว่า PIN ผิด
+  // แต่ดีกว่าคือ เพิ่ม action "verifyPin" ใน server
+  // สำหรับตอนนี้: เก็บ PIN ไว้ใน session แล้วส่งพร้อม order ถ้าผิดค่อยแจ้ง
+
+  // เก็บ PIN session
+  sessionStorage.setItem("pos_pin", pinInput);
+  posSecret = pinInput;
+
+  // ถ้า PIN ≥ 4 หลัก → ลองยืนยันกับ server
+  if (pinInput.length >= 4) {
+    verifyPin(pinInput);
+  }
+}
+
+function verifyPin(pin) {
+  const dots = document.getElementById("pin-dots");
+  // flash loading
+  document.getElementById("pin-err").textContent = "กำลังตรวจสอบ...";
+  jsonpCall(
+    { action: "verifyPin", posSecret: pin },
+    function(data) {
+      if (data && data.ok) {
+        // PIN ถูก → เข้าหน้า POS
+        posSecret = pin;
+        sessionStorage.setItem("pos_pin", pin);
+        document.getElementById("pin-screen").classList.add("hidden");
+        document.getElementById("pin-err").textContent = "";
+        checkShopStatus();
+        fetchMenu();
+      } else {
+        // PIN ผิด
+        pinAttempts++;
+        pinInput = "";
+        renderDots();
+        // error shake
+        document.querySelectorAll(".pin-dot").forEach(d => d.classList.add("error"));
+        setTimeout(() => document.querySelectorAll(".pin-dot").forEach(d => d.classList.remove("error")), 400);
+        const left = PIN_MAX_ATTEMPTS - pinAttempts;
+        document.getElementById("pin-err").textContent = "PIN ไม่ถูกต้อง";
+        document.getElementById("pin-attempt").textContent = left > 0
+          ? "เหลืออีก " + left + " ครั้ง"
+          : "ถูกล็อก กรุณาติดต่อผู้ดูแลระบบ";
+      }
+    },
+    function() {
+      // server ไม่ตอบ → ถ้าไม่มี POS_SECRET ตั้งไว้ก็ผ่านได้เลย
+      posSecret = pin;
+      sessionStorage.setItem("pos_pin", pin);
+      document.getElementById("pin-screen").classList.add("hidden");
+      checkShopStatus();
+      fetchMenu();
+    },
+    10000
+  );
+}
+
+// ── Boot ──────────────────────────────────
+window.addEventListener("DOMContentLoaded", function() {
+  buildNumpad();
+  // ถ้ามี PIN ใน session ให้ bypass login ได้
+  const saved = sessionStorage.getItem("pos_pin");
+  if (saved) {
+    posSecret = saved;
+    document.getElementById("pin-screen").classList.add("hidden");
+    checkShopStatus();
+    fetchMenu();
+  }
+  // ถ้าไม่มี → แสดงหน้า PIN
+});
+
+function checkShopStatus() {
+  jsonpCall(
+    { action: "getStatus" },
+    function(data) {
+      if (data && data.status === "closed") {
+        const banner = document.getElementById("shop-closed-banner");
+        if (banner) banner.style.display = "block";
+      }
+    },
+    function() {},
+    8000
+  );
+}
+
+function fetchMenu() {
+  jsonpCall(
+    { action: "getMenu" },
+    function(data) {
+      document.getElementById("loading").classList.add("hidden");
+      if (!data || !data.sheets || Object.keys(data.sheets).length === 0) {
+        showError("ไม่มีเมนูในระบบ"); return;
+      }
+      allSheets = {}; optionSheets = {};
+      for (const [name, rows] of Object.entries(data.sheets)) {
+        if (name.endsWith("_options")) optionSheets[name.slice(0,-8)] = rows;
+        else allSheets[name] = rows;
+      }
+      allItems = Object.values(allSheets).flat();
+      stockMap = {};
+      allItems.forEach(item => {
+        const s = parseInt(item.stock ?? item.Stock ?? "");
+        if (!isNaN(s)) stockMap[item.id] = s;
+      });
+      buildCats(); renderGrid();
+    },
+    function(err) {
+      document.getElementById("loading").classList.add("hidden");
+      showError("โหลดเมนูไม่สำเร็จ"); console.error(err);
+    }
+  );
+}
+
+// ── Categories ────────────────────────────
+function buildCats() {
+  const cats = ["ทั้งหมด", ...Object.keys(allSheets)];
+  document.getElementById("cats").innerHTML = cats.map(c =>
+    `<button class="cat-btn${c===curCat?" active":""}" onclick="filterCat('${c}',this)">${c}</button>`
+  ).join("");
+}
+function filterCat(cat, btn) {
+  curCat = cat;
+  document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  renderGrid();
+}
+
+// ── Grid ──────────────────────────────────
+function renderGrid() {
+  const raw  = curCat === "ทั้งหมด" ? allItems : (allSheets[curCat] || []);
+  // สินค้าพร้อมขายขึ้นก่อน หมด/ปิดไปอยู่ท้าย
+  const list = [...raw].sort((a, b) => {
+    const closed = s => ["not ready","closed","หมดแล้ว","หมด"].includes(String(s.status).toLowerCase());
+    const noStock = s => (s.id in stockMap) && getAvailableStock(s.id) <= 0;
+    const isUnavail = s => closed(s) || noStock(s);
+    return isUnavail(a) - isUnavail(b);
+  });
+  if (!list.length) {
+    document.getElementById("grid").innerHTML =
+      `<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text3)">ไม่มีเมนู</div>`;
+    return;
+  }
+  document.getElementById("grid").innerHTML = list.map(item => {
+    const statusClosed = ["not ready","closed","หมดแล้ว","หมด"].includes(String(item.status).toLowerCase());
+    const hasStock = item.id in stockMap;
+    const stockNow = hasStock ? getAvailableStock(item.id) : Infinity;
+    const isOpen   = !statusClosed && stockNow > 0;
+    const imgBlock = item.image
+      ? `<div class="card-img"><img src="${item.image}" alt="${item.name}" loading="lazy" onerror="this.parentElement.innerHTML='🍽️'"></div>`
+      : `<div class="card-img">🍽️</div>`;
+    let stockBadge = "";
+    if (hasStock) {
+      if (stockNow <= 0)       stockBadge = `<div class="stock-badge out">หมด</div>`;
+      else if (stockNow <= 5)  stockBadge = `<div class="stock-badge low">เหลือ ${stockNow}</div>`;
+      else                     stockBadge = `<div class="stock-badge">เหลือ ${stockNow}</div>`;
+    }
+    return `<div class="card${isOpen?"":" closed"}" onclick="${isOpen?`addToCart('${item.id}')`:""}" id="card-${item.id}">
+      ${imgBlock}
+      ${!isOpen ? `<div class="closed-badge">หมด</div>` : ""}
+      ${stockBadge}
+      <div class="card-body">
+        <div class="card-name">${item.name}</div>
+        <div class="card-foot">
+          <span class="card-price">฿${item.price}</span>
+          ${isOpen ? `<button class="card-add" onclick="event.stopPropagation();addToCart('${item.id}')">+</button>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── Stock helpers ─────────────────────────
+function qtyInCart(itemId) {
+  return Object.values(cart).filter(e => e.item.id===itemId).reduce((s,e)=>s+e.qty,0);
+}
+function getAvailableStock(itemId) {
+  if (!(itemId in stockMap)) return Infinity;
+  return Math.max(0, stockMap[itemId] - qtyInCart(itemId));
+}
+function refreshCardUI(itemId) {
+  const card = document.getElementById("card-" + itemId);
+  if (!card) return;
+  const hasStock = itemId in stockMap;
+  const stockNow = getAvailableStock(itemId);
+  let badge = card.querySelector(".stock-badge");
+  if (hasStock) {
+    if (!badge) { badge = document.createElement("div"); card.insertBefore(badge, card.firstChild); }
+    if (stockNow <= 0)      { badge.className = "stock-badge out"; badge.textContent = "หมด"; }
+    else if (stockNow <= 5) { badge.className = "stock-badge low"; badge.textContent = "เหลือ " + stockNow; }
+    else                    { badge.className = "stock-badge";     badge.textContent = "เหลือ " + stockNow; }
+    if (stockNow <= 0) {
+      card.classList.add("closed"); card.onclick = null;
+      const addBtn = card.querySelector(".card-add");
+      if (addBtn) addBtn.style.display = "none";
+    }
+  }
+}
+
+// ── Cart ──────────────────────────────────
+function addToCart(id) {
+  const item = allItems.find(i => i.id === id);
+  if (!item) return;
+  if (id in stockMap && getAvailableStock(id) <= 0) return;
+  const existing = Object.keys(cart).find(k => cart[k].item.id===id && Object.keys(cart[k].options).length===0);
+  if (existing) { cart[existing].qty++; }
+  else { cart[String(id)+"_"+Date.now()] = { item, qty:1, options:{} }; }
+  refreshCardUI(id);
+  renderCart();
+}
+
+function changeQty(key, delta) {
+  if (!cart[key]) return;
+  const itemId = cart[key].item.id;
+  if (delta > 0 && itemId in stockMap && getAvailableStock(itemId) <= 0) return;
+  cart[key].qty += delta;
+  if (cart[key].qty <= 0) delete cart[key];
+  refreshCardUI(itemId);
+  renderCart();
+}
+
+function clearCart() {
+  const ids = [...new Set(Object.values(cart).map(e=>e.item.id))];
+  cart = {};
+  ids.forEach(id => refreshCardUI(id));
+  renderCart();
+}
+
+// ── Options ───────────────────────────────
+function getRelevantOptions(item) {
+  const result = [];
+  const parentSheet = Object.entries(allSheets).find(([,items])=>items.some(i=>i.id===item.id));
+  if (!parentSheet) return result;
+  for (const [base, rows] of Object.entries(optionSheets)) {
+    if (parentSheet[0].toLowerCase() === base.toLowerCase()) result.push({base,rows});
+  }
+  return result;
+}
+function toggleOption(key, base, idx) {
+  if (!cart[key]) return;
+  if (!cart[key].options[base]) cart[key].options[base] = new Set();
+  const s = cart[key].options[base];
+  if (s.has(idx)) s.delete(idx); else s.add(idx);
+  const safeKey = key.replace(/[^a-zA-Z0-9]/g,"_");
+  const cbEl = document.getElementById("cb-"+safeKey+"-"+base+"-"+idx);
+  if (cbEl) cbEl.classList.toggle("checked", s.has(idx));
+  refreshOptHeader(key, base);
+  // อัปเดตราคา
+  const priceEl = document.getElementById("ci-price-"+safeKey);
+  if (priceEl) priceEl.textContent = "฿"+getLineTotal(cart[key]);
+  updateFooter();
+}
+function toggleOptBody(key, base) {
+  const safeKey = key.replace(/[^a-zA-Z0-9]/g,"_");
+  const body = document.getElementById("opt-body-"+safeKey+"-"+base);
+  const chev = document.getElementById("opt-chev-"+safeKey+"-"+base);
+  if (!body) return;
+  body.classList.toggle("open");
+  if (chev) chev.classList.toggle("open", body.classList.contains("open"));
+}
+function refreshOptHeader(key, base) {
+  const safeKey = key.replace(/[^a-zA-Z0-9]/g,"_");
+  const tagsEl = document.getElementById("opt-tags-"+safeKey+"-"+base);
+  if (!tagsEl) return;
+  const rows = optionSheets[base]||[];
+  const sel  = cart[key]?.options?.[base];
+  const chosen = sel ? [...sel].map(i=>rows[i]).filter(Boolean) : [];
+  tagsEl.innerHTML = chosen.length
+    ? chosen.map(r=>`<span class="opt-tag">${r.name||r.Name||r.item||r.Item||"?"}</span>`).join("")
+    : `<span style="font-size:10px;color:var(--text3)">ไม่เพิ่ม</span>`;
+}
+
+// ── Price calc ────────────────────────────
+function getOptionPrice(entry) {
+  let t=0;
+  for (const [base,sel] of Object.entries(entry.options||{})) {
+    if (!sel) continue;
+    const rows = optionSheets[base]||[];
+    for (const idx of sel) {
+      const r=rows[idx]; if (!r) continue;
+      const p=parseFloat(r.price||r.Price||0); if (!isNaN(p)) t+=p;
+    }
+  }
+  return t;
+}
+function getLineTotal(entry) { return (entry.item.price + getOptionPrice(entry)) * entry.qty; }
+function getTotal() { return Object.values(cart).reduce((s,e)=>s+getLineTotal(e),0); }
+function getCount() { return Object.values(cart).reduce((s,e)=>s+e.qty,0); }
+
+// ── Render Cart ───────────────────────────
+function renderCart() {
+  const entries = Object.entries(cart).filter(([,e])=>e.qty>0);
+  const el = document.getElementById("cart-items");
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty-cart"><div>🍽️</div><p>ยังไม่มีรายการ</p></div>`;
+    updateFooter(); return;
+  }
+  el.innerHTML = entries.map(([key,e]) => {
+    const safeKey = key.replace(/[^a-zA-Z0-9]/g,"_");
+    const opts    = getRelevantOptions(e.item);
+    const optGroups = opts.map(({base,rows}) => {
+      const gName = rows[0]?(rows[0].group||rows[0].Group||rows[0].type||rows[0].Type||base):base;
+      const sel   = e.options[base]||new Set();
+      const chosen= [...sel].map(i=>rows[i]).filter(Boolean);
+      const tagsHtml = chosen.length
+        ? chosen.map(r=>`<span class="opt-tag">${r.name||r.Name||r.item||r.Item||"?"}</span>`).join("")
+        : `<span style="font-size:10px;color:var(--text3)">ไม่เพิ่ม</span>`;
+      const choicesHtml = rows.map((r,i)=>{
+        const n=r.name||r.Name||r.item||r.Item||"?";
+        const p=parseFloat(r.price||r.Price||0);
+        return `<div class="opt-choice" onclick="toggleOption('${key}','${base}',${i})">
+          <div class="opt-checkbox${sel.has(i)?" checked":""}" id="cb-${safeKey}-${base}-${i}"></div>
+          <span class="opt-choice-name">${n}</span>
+          ${p>0?`<span class="opt-choice-price">+฿${p}</span>`:""}
+        </div>`;
+      }).join("");
+      return `<div class="opt-group">
+        <div class="opt-header" onclick="toggleOptBody('${key}','${base}')">
+          <div class="opt-header-left">
+            <span class="opt-header-label">${gName}</span>
+            <div class="opt-selected-tags" id="opt-tags-${safeKey}-${base}">${tagsHtml}</div>
+          </div>
+          <span class="opt-chevron" id="opt-chev-${safeKey}-${base}">▼</span>
+        </div>
+        <div class="opt-body" id="opt-body-${safeKey}-${base}">${choicesHtml}</div>
+      </div>`;
+    }).join("");
+    return `<div class="ci">
+      <div class="ci-info">
+        <div class="ci-name">${e.item.name}</div>
+        ${optGroups}
+        <div class="ci-ctrl">
+          <div class="qb" onclick="changeQty('${key}',-1)">−</div>
+          <span class="qn">${e.qty}</span>
+          <div class="qb" onclick="changeQty('${key}',1)">+</div>
+        </div>
+      </div>
+      <span class="ci-price" id="ci-price-${safeKey}">฿${getLineTotal(e)}</span>
+    </div>`;
+  }).join("");
+  updateFooter();
+}
+
+function updateFooter() {
+  const count = getCount();
+  const total = getTotal();
+  document.getElementById("cart-count").textContent = count;
+  document.getElementById("cart-total").textContent = "฿"+total;
+  document.getElementById("order-btn").disabled = count === 0;
+}
+
+// ── Confirm Popup ─────────────────────────
+function showConfirm() {
+  // ตรวจ stock อีกครั้งก่อนเปิด popup (กัน race condition)
+  const stockFail = [];
+  Object.values(cart).forEach(e => {
+    const id = e.item.id;
+    if (id in stockMap) {
+      const avail = getAvailableStock(id);
+      if (avail < e.qty) stockFail.push(e.item.name + " (เหลือ " + avail + " แต่สั่ง " + e.qty + ")");
+    }
+  });
+  if (stockFail.length) {
+    alert("สินค้าในตะกร้าเกินจำนวน:\n" + stockFail.join("\n") + "\nกรุณาลดจำนวนก่อนยืนยัน");
+    return;
+  }
+  const lines = Object.values(cart).filter(e=>e.qty>0).map(e=>{
+    const optParts=[];
+    for (const [base,sel] of Object.entries(e.options||{})) {
+      if (!sel||sel.size===0) continue;
+      const rows=optionSheets[base]||[];
+      [...sel].map(i=>rows[i]).filter(Boolean).forEach(r=>{
+        const n=r.name||r.Name||r.item||r.Item||"?";
+        const p=parseFloat(r.price||r.Price||0);
+        optParts.push(n+(p>0?" (+฿"+p+")":""));
+      });
+    }
+    return `<div class="ri">
+      <div class="ri-left">
+        <div class="ri-name">${e.item.name}</div>
+        ${optParts.length?`<div class="ri-opts">+ ${optParts.join(", ")}</div>`:""}
+        <div class="ri-qty">x${e.qty}</div>
+      </div>
+      <div class="ri-price">฿${getLineTotal(e)}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("confirm-receipt").innerHTML = lines;
+  document.getElementById("confirm-total").textContent = "฿"+getTotal();
+  document.getElementById("confirm-overlay").classList.add("open");
+}
+function closeConfirm() {
+  document.getElementById("confirm-overlay").classList.remove("open");
+}
+
+// ── Submit ────────────────────────────────
+function doSubmit() {
+  const btn = document.getElementById("confirm-ok-btn");
+  btn.disabled = true;
+  btn.textContent = "กำลังส่ง...";
+  closeConfirm();
+
+  const orderItems = Object.values(cart).map(e=>{
+    const optLines=[];
+    for (const [base,sel] of Object.entries(e.options||{})) {
+      if (!sel||sel.size===0) continue;
+      const rows=optionSheets[base]||[];
+      const gName=rows[0]?(rows[0].group||rows[0].Group||rows[0].type||rows[0].Type||base):base;
+      const chosen=[...sel].map(i=>rows[i]).filter(Boolean);
+      const subs=chosen.map(r=>{
+        const n=r.name||r.Name||r.item||r.Item||"?";
+        const p=parseFloat(r.price||r.Price||0);
+        return "-"+n+(p>0?" (+฿"+p+")":"");
+      });
+      if (subs.length) optLines.push("+"+gName+"("+subs.join(" ")+")");
+    }
+    return {
+      id:         e.item.id,
+      rowIndex:   e.item.rowIndex,
+      sheetName:  e.item.sheetName||"",
+      name:       e.item.name,
+      price:      e.item.price,
+      optionPrice:getOptionPrice(e),
+      qty:        e.qty,
+      options:    optLines.join(" "),
+      lineTotal:  getLineTotal(e),
+    };
+  });
+
+  jsonpCall(
+    {
+      action:   "saveOrder",
+      order:    { items: orderItems },
+      phone:    "POS",
+      gps:      null,
+      imageFileId: "",
+      posSecret: posSecret,
+    },
+    function(data) {
+      btn.disabled = false; btn.textContent = "✅ สั่งเลย!";
+      if (data && data.success) {
+        // อัปเดต stock
+        if (data.updatedStock) Object.assign(stockMap, data.updatedStock);
+        else Object.values(cart).forEach(e=>{
+          if (e.item.id in stockMap) stockMap[e.item.id]=Math.max(0,stockMap[e.item.id]-e.qty);
+        });
+        const ids=[...new Set(Object.values(cart).map(e=>e.item.id))];
+        clearCart();
+        ids.forEach(id=>refreshCardUI(id));
+        document.getElementById("success-msg").innerHTML =
+          "ออเดอร์ถูกส่งแล้ว 🙏<br>รวม <strong>฿"+data.total+"</strong>";
+        document.getElementById("success-overlay").classList.add("open");
+      } else {
+        alert("เกิดข้อผิดพลาด: "+(data&&data.error||"กรุณาลองใหม่"));
+      }
+    },
+    function() {
+      btn.disabled=false; btn.textContent="✅ สั่งเลย!";
+      alert("ส่งออเดอร์ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อ");
+    },
+    20000
+  );
+}
+
+function closeSuccess() {
+  document.getElementById("success-overlay").classList.remove("open");
+}
+
+function showError(msg) {
+  const el = document.getElementById("error-banner");
+  el.textContent = "⚠️ "+msg;
+  el.style.display = "block";
+}
+</script>
+</body>
+</html>
